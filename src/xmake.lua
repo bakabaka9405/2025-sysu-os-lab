@@ -1,38 +1,45 @@
 set_xmakever("2.9.8")
-add_rules("mode.debug","mode.release")
+add_rules("mode.debug", "mode.release")
 set_languages("c11","cxx20")
 rule("asm.elf",function()
     set_extensions(".asm")
     on_build_file(function (target, sourcefile, opt)
-        -- print("sourcefile",sourcefile)
         local objfile = target:objectfile(sourcefile)
         os.mkdir(path.directory(objfile))
-		local includes=""
-		for _,v in ipairs(target:get("includedirs")) do
-			includes=includes.."-I"..v
-		end
-        os.runv("nasm", {"-f", "elf32", includes, "-o", objfile, sourcefile})
+		local includes = {}
+        for _, v in ipairs(target:get("includedirs")) do
+            table.insert(includes, "-I" .. v)
+        end
+        os.runv("nasm", {"-f", "elf32", unpack(includes), "-o", objfile, sourcefile})
 		table.insert(target:objectfiles(),objfile)
     end)	
 	on_link(function(target)
 		local objfiles = target:objectfiles()
 		local outputfile = target:targetdir().."/"..target:filename()
 		os.mkdir(target:targetdir())
-		os.runv("ld", {"-m", "elf_i386","-e","entry_kernel","-Ttext","0x00020000", "-o", os.projectdir().."/run/kernel.o", unpack(objfiles)})
-		os.runv("ld", {"-m", "elf_i386","-e","entry_kernel","-Ttext","0x00020000","--oformat","binary", "-o", outputfile, unpack(objfiles)})
+        for i,v in ipairs(objfiles) do
+            -- 将 entry.asm.o 移到最前
+            start, _end = string.find(v, "entry.asm.o")
+            if start then
+                objfiles[i],objfiles[1]=objfiles[1],objfiles[i]
+                break
+            end
+        end
+        print(objfiles)
+		os.runv("ld", {"-m", "elf_i386","-e","enter_kernel","-Ttext","0x00020000", "-o", os.projectdir().."/run/kernel.o", unpack(objfiles)})
+		os.runv("ld", {"-m", "elf_i386","-e","enter_kernel","-Ttext","0x00020000","--oformat","binary", "-o", outputfile, unpack(objfiles)})
 	end)
 end)
 
 rule("asm.bin",function()
     set_extensions(".asm")
     on_build_file(function (target, sourcefile, opt)
-        -- print("sourcefile",sourcefile)
         os.mkdir(target:targetdir())
-		local includes=""
-		for _,v in ipairs(target:get("includedirs")) do
-			includes=includes.."-I"..v
-		end
-		os.runv("nasm", {"-f", "bin", includes, "-o", target:targetdir().."/"..target:filename(), sourcefile})
+		local includes = {}
+        for _, v in ipairs(target:get("includedirs")) do
+            table.insert(includes, "-I" .. v)
+        end
+		os.runv("nasm", {"-f", "bin", unpack(includes), "-o", target:targetdir().."/"..target:filename(), sourcefile})
     end)
 	on_link(function(target)
 	end)
@@ -43,8 +50,6 @@ rule("kernel.build",function()
         os.runv("mkdir",{"-p","run"})
     end)
 	after_build(function(target)
-        print("target:",target:name())
-        print("targetdir:",target:targetdir())
         mbr = target:dep(target:name()..".mbr")
         bootloader = target:dep(target:name()..".bootloader")
         kernel = target:dep(target:name()..".kernel")
