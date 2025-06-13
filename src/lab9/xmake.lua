@@ -1,0 +1,30 @@
+
+target("lab9.mbr", function()
+	add_includedirs("include")
+	add_rules("asm.bin")
+	add_files("src/boot/mbr.asm")
+	set_filename("mbr.bin")
+end)
+
+target("lab9.bootloader", function()
+	add_includedirs("include")
+	add_rules("new_bootloader")
+	add_files("src/boot/bootloader.asm", "src/boot/page.cpp")
+	set_filename("bootloader.bin")
+	add_cxxflags("-march=i386", "-m32", "-nostdlib", "-fno-builtin", "-ffreestanding", "-fno-pic")
+end)
+
+target("lab9.kernel", function()
+	add_includedirs("include")
+	add_rules("asm.elf2")
+	add_files("src/boot/entry.asm", "src/kernel/*.cpp","src/utils/*.asm")
+	set_filename("kernel.bin")
+	add_cxxflags("-march=i386", "-m32", "-nostdlib", "-fno-builtin", "-ffreestanding", "-fno-pic")
+	
+end)
+
+target("lab9", function()
+	set_kind("phony")
+	add_deps("lab9.mbr", "lab9.bootloader", "lab9.kernel")
+	add_rules("kernel.build")
+end)
